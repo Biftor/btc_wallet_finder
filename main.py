@@ -220,10 +220,8 @@ def create_and_check_wallets(params, check=True):
 
 
 def main(params):
-    create_and_check_wallets(params)
-
-    # while True:
-    #     create_and_check_wallets(params)
+    while True:
+        create_and_check_wallets(params)
 
 
 def print_help():
@@ -244,7 +242,7 @@ def timer(params):
 if __name__ == '__main__':
     args = {
         'verbose': 0,
-        'max_count': 100,
+        'max_count': 400,
         'cores': multiprocessing.cpu_count(),
         'check_wallets': 1,
         'fastecdsa': platform.system() in ['Linux', 'Darwin'],
