@@ -1,0 +1,4 @@
+fastecdsa~=2.3.2
+starkbank-ecdsa
+requests~=2.31.0
+python-dotenv
