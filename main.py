@@ -4,7 +4,6 @@ import requests
 from dotenv import load_dotenv
 from fastecdsa import keys, curve
 from ellipticcurve.privateKey import PrivateKey
-import platform
 import multiprocessing
 import hashlib
 import binascii
@@ -96,11 +95,11 @@ def private_key_to_wif(private_key):
     return chars[0] * pad + result
 
 
-def send_telegram_message(bot_token, chat_id, message):
+def send_telegram_message(message):
     try:
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
         params = {
-            "chat_id": chat_id,
+            "chat_id": TG_CHAT_ID,
             "text": message
         }
         response = requests.post(url, params=params)
@@ -112,10 +111,10 @@ def send_telegram_message(bot_token, chat_id, message):
         pass
 
 
-def parse_addresses_with_btc(json_response):
+def parse_addresses_with_btc(json_response, process_index):
     addresses_with_balance_gt_zero = []
 
-    with open('btc_wallets.json', 'w') as json_file:
+    with open(f'{process_index}_btc_wallets.json', 'w') as json_file:
         json.dump(json_response, json_file, indent=4)
     for w_address, data in json_response.items():
         final_balance = data['final_balance'] / 100000000  # Convert satoshi to bitcoin
@@ -129,21 +128,29 @@ def parse_addresses_with_btc(json_response):
     return addresses_with_balance_gt_zero
 
 
-def check_btc_balance(addresses, retries=3, delay=10):
+def check_btc_balance(addresses, process_index, retries=3, delay=10):
     # Check the balance of the address
     for attempt in range(retries):
         try:
             response = requests.get(f"https://blockchain.info/balance?active={addresses}")
             json_response = response.json()
-            return parse_addresses_with_btc(json_response=json_response)
+            return parse_addresses_with_btc(process_index=process_index, json_response=json_response)
         except Exception as e:
             if attempt < retries - 1:
+                error = f"Error checking balance, retrying in {delay} seconds: {str(e)}"
                 print(
-                    f"Error checking balance, retrying in {delay} seconds: {str(e)}"
+                    error
                 )
+                if TG_BOT_TOKEN and TG_CHAT_ID:
+                    send_telegram_message(message=error)
                 time.sleep(delay)
             else:
-                print("Error checking balance: %s", str(e))
+                error = f"Error checking balance: {str(e)}"
+                print(
+                    error
+                )
+                if TG_BOT_TOKEN and TG_CHAT_ID:
+                    send_telegram_message(message=error)
                 return None
 
 
@@ -166,7 +173,7 @@ def append_json_to_file(json_response, output_json_file):
         json.dump(existing_data, json_file, indent=2)
 
 
-def create_and_check_wallets(params, check=True):
+def create_and_check_wallets(params, process_index, check=True):
     wallets = []
     max_generate = params["max_count"]
     count = 0
@@ -190,11 +197,11 @@ def create_and_check_wallets(params, check=True):
         else:
             addresses += wallet_uncompressed_address
 
-    with open('wallets.json', 'w') as json_file:
+    with open(f'{process_index}_wallets.json', 'w') as json_file:
         json.dump(wallets, json_file, indent=4)
 
     if check:
-        checked_wallets = check_btc_balance(addresses)
+        checked_wallets = check_btc_balance(addresses=addresses, process_index=process_index)
         if checked_wallets is not None:
             for w_balance_address in checked_wallets:
                 for w_address, data in w_balance_address.items():  # Corrected unpacking
@@ -210,18 +217,18 @@ def create_and_check_wallets(params, check=True):
                                              'uncompressed wallet address: ' + str(w_address) + '\n' +
                                              'balance: ' + str(balance))
                             if TG_BOT_TOKEN and TG_CHAT_ID:
-                                send_telegram_message(bot_token=TG_BOT_TOKEN, chat_id=TG_CHAT_ID, message=tg_message)
+                                send_telegram_message(message=tg_message)
 
                             print(f"Found Wallet:{tg_message}\n")
                             wallet["balance"] = balance
                             append_json_to_file(json_response=json.dumps(wallet, indent=4),
-                                                output_json_file="found_wallets.json")
+                                                output_json_file=f'{process_index}_found_wallets.json')
                             break
 
 
-def main(params):
+def main(params, process_index):
     while True:
-        create_and_check_wallets(params)
+        create_and_check_wallets(params=params, process_index=process_index)
 
 
 def print_help():
@@ -233,19 +240,20 @@ def timer(params):
     start = time.time()
     check_w = params["check_wallets"] == "1"
     print(params["check_wallets"])
-    create_and_check_wallets(params=params, check=check_w)
+    create_and_check_wallets(params=params, check=check_w, process_index="")
     end = time.time()
     print(str(end - start))
     sys.exit(0)
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
     args = {
         'verbose': 0,
         'max_count': 400,
         'cores': multiprocessing.cpu_count(),
         'check_wallets': 1,
-        'fastecdsa': platform.system() in ['Linux', 'Darwin'],
+        'fastecdsa': True,
     }
 
     for arg in sys.argv[1:]:
@@ -287,7 +295,11 @@ if __name__ == '__main__':
             print('invalid input: ' + command + '\nrun `python3 main.py help` for help')
             sys.exit(-1)
 
-    print('processes spawned: ' + str(args['cores']))
-
-    for cpu in range(args['cores']):
-        multiprocessing.Process(target=main, args=(args,)).start()
+    if args['cores'] > 1:
+        index = 0
+        print('processes spawned: ' + str(args['cores']))
+        for cpu in range(args['cores']):
+            index += 1
+            multiprocessing.Process(target=main, args=(args, str(index))).start()
+    else:
+        main(params=args, process_index="")
