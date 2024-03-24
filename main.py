@@ -27,7 +27,7 @@ verbose: must be 0 or 1. If 1, then every bitcoin address that gets bruteforce w
 has the potential to slow the program down. An input of 0 will not print anything to the terminal and the 
 bruteforce will work silently. By default verbose is 0.
 
-max_count: Maximum number of wallet generation and send for test
+max_wallets: Maximum number of wallet generation and send for test
 
 method: There are 2 methods 1 is using private key and 2 is using seed phrases
 
@@ -202,7 +202,7 @@ def append_json_to_file(json_response, output_json_file):
 
 def create_and_check_wallets(params, process_index, check=True):
     wallets = []
-    max_generate = params["max_count"]
+    max_generate = params["max_wallets"]
     method = params['method']
     count = 0
     addresses = ''
@@ -296,7 +296,7 @@ if __name__ == '__main__':
     multiprocessing.freeze_support()
     args = {
         'verbose': 0,
-        'max_count': 400,
+        'max_wallets': 400,
         'cores': multiprocessing.cpu_count(),
         'check_wallets': 1,
         'fastecdsa': True,
@@ -309,12 +309,12 @@ if __name__ == '__main__':
             print_help()
         elif command == 'time':
             timer(args)
-        elif command == 'max_count':
-            max_count = int(arg.split('=')[1])
-            if 0 < max_count:
-                args['max_count'] = max_count
+        elif command == 'max_wallets':
+            max_wallets = int(arg.split('=')[1])
+            if 0 < max_wallets:
+                args['max_wallets'] = max_wallets
             else:
-                print('invalid input. max_count must be greater than 0')
+                print('invalid input. max_wallets must be greater than 0')
                 sys.exit(-1)
         elif command == 'cores':
             cpu_count = int(arg.split('=')[1])

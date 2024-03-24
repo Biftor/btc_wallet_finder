@@ -22,7 +22,7 @@
 # Prams:
 
 `cores` number of cpu cores
-`max_count` number wallet generation each time (default is 100)
+`max_wallets` number wallet generation each time (default is 100)
 `verbose` print the addresses
 `time` time of process(create, check wallets)
 if you want to omit checking wallets in time process you can pass `check_wallets=0` to combine with time
