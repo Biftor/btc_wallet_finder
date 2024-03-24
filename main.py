@@ -1,6 +1,7 @@
 import json
 
 import requests
+from bip_utils import Bip39MnemonicGenerator, Bip39WordsNum, Bip39SeedGenerator, Bip44Coins, Bip44, Bip44Changes
 from dotenv import load_dotenv
 from fastecdsa import keys, curve
 from ellipticcurve.privateKey import PrivateKey
@@ -17,16 +18,18 @@ execute 'python3 main.py time', the output will be the time it takes to brutefor
 to full check you can pass check_wallets=1 it will check wallets too
 
 
-Quick start: run command 'python3 main.py'
+Quick start: run command 'python main.py'
 
 By default this program runs with parameters:
-python3 main.py verbose=0
+python main.py verbose=0
 
 verbose: must be 0 or 1. If 1, then every bitcoin address that gets bruteforce will be printed to the terminal. This 
 has the potential to slow the program down. An input of 0 will not print anything to the terminal and the 
 bruteforce will work silently. By default verbose is 0.
 
 max_count: Maximum number of wallet generation and send for test
+
+method: There are 2 methods 1 is using private key and 2 is using seed phrases
 
 cores: number of cores to run concurrently. More cores = more resource usage but faster bruteforce. Omit this 
 parameter to run with the maximum number of cores'''
@@ -40,6 +43,7 @@ load_dotenv(env_file_path)
 
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TG_CHAT_ID")
+CHARS = '123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
 
 
 def generate_private_key():
@@ -57,7 +61,7 @@ def private_key_to_public_key(private_key, fastecdsa):
 
 def public_key_to_address(public_key):
     output = []
-    alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    alphabet = CHARS
     var = hashlib.new('ripemd160')
     encoding = binascii.unhexlify(public_key.encode())
     var.update(hashlib.sha256(encoding).digest())
@@ -78,7 +82,7 @@ def private_key_to_wif(private_key):
     digest = hashlib.sha256(binascii.unhexlify('80' + private_key)).hexdigest()
     var = hashlib.sha256(binascii.unhexlify(digest)).hexdigest()
     var = binascii.unhexlify('80' + private_key + var[0:8])
-    alphabet = chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    alphabet = chars = CHARS
     value = pad = 0
     result = ''
     for i, c in enumerate(var[::-1]):
@@ -93,6 +97,27 @@ def private_key_to_wif(private_key):
         else:
             break
     return chars[0] * pad + result
+
+
+def bip():
+    # Generate a 12-word BIP39 mnemonic
+    return Bip39MnemonicGenerator().FromWordsNumber(Bip39WordsNum.WORDS_NUM_12)
+
+
+def bip44_btc_seed_to_address(seed):
+    # Generate the seed from the mnemonic
+    seed_bytes = Bip39SeedGenerator(seed).Generate()
+
+    # Generate the Bip44 object
+    bip44_mst_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.BITCOIN)
+
+    # Generate the Bip44 address (account 0, change 0, address 0)
+    bip44_acc_ctx = bip44_mst_ctx.Purpose().Coin().Account(0)
+    bip44_chg_ctx = bip44_acc_ctx.Change(Bip44Changes.CHAIN_EXT)
+    bip44_addr_ctx = bip44_chg_ctx.AddressIndex(0)
+
+    # Print the address
+    return bip44_addr_ctx.PublicKey().ToAddress()
 
 
 def send_telegram_message(message):
@@ -114,7 +139,7 @@ def send_telegram_message(message):
 def parse_addresses_with_btc(json_response, process_index):
     addresses_with_balance_gt_zero = []
 
-    with open(f'{process_index}_btc_wallets.json', 'w') as json_file:
+    with open(f'{process_index}btc_wallets.json', 'w') as json_file:
         json.dump(json_response, json_file, indent=4)
     for w_address, data in json_response.items():
         final_balance = data['final_balance'] / 100000000  # Convert satoshi to bitcoin
@@ -176,53 +201,72 @@ def append_json_to_file(json_response, output_json_file):
 def create_and_check_wallets(params, process_index, check=True):
     wallets = []
     max_generate = params["max_count"]
+    method = params['method']
     count = 0
     addresses = ''
     while count < max_generate:
-        wallet_hex_private_key = generate_private_key()
-        wallet_public_key = private_key_to_public_key(wallet_hex_private_key, params['fastecdsa'])
-        wallet_wif = private_key_to_wif(wallet_hex_private_key)
-        wallet_uncompressed_address = public_key_to_address(wallet_public_key)
-        if params['verbose']:
-            print(wallet_uncompressed_address)
-        wallets.append({
-            "private_key": wallet_hex_private_key,
-            "public_key": wallet_public_key,
-            "wif": wallet_wif,
-            "address": wallet_uncompressed_address
-        })
+        if method == 1:
+            wallet_hex_private_key = generate_private_key()
+            wallet_public_key = private_key_to_public_key(wallet_hex_private_key, params['fastecdsa'])
+            wallet_wif = private_key_to_wif(wallet_hex_private_key)
+            wallet_uncompressed_address = public_key_to_address(wallet_public_key)
+            if params['verbose']:
+                print(wallet_uncompressed_address)
+            wallets.append({
+                "private_key": wallet_hex_private_key,
+                "public_key": wallet_public_key,
+                "wif": wallet_wif,
+                "address": wallet_uncompressed_address
+            })
+        else:
+            seed = bip()
+            wallet_uncompressed_address = bip44_btc_seed_to_address(seed)
+            if params['verbose']:
+                print(seed)
+            wallets.append({
+                "seed": str(seed),
+                "address": wallet_uncompressed_address
+            })
+
         count += 1
         if count < max_generate:
             addresses += wallet_uncompressed_address + "|"
         else:
             addresses += wallet_uncompressed_address
 
-    with open(f'{process_index}_wallets.json', 'w') as json_file:
+    with open(f'{process_index}wallets.json', 'w') as json_file:
         json.dump(wallets, json_file, indent=4)
 
     if check:
         checked_wallets = check_btc_balance(addresses=addresses, process_index=process_index)
         if checked_wallets is not None:
             for w_balance_address in checked_wallets:
-                for w_address, data in w_balance_address.items():  # Corrected unpacking
+                for w_address, data in w_balance_address.items():
                     for wallet in wallets:
                         if wallet['address'] == w_address:
-                            w_private_key = wallet["private_key"]
-                            w_public_key = wallet["public_key"]
-                            w_wif = wallet["wif"]
-                            balance = data["final_balance"]
-                            tg_message = str('hex private key: ' + str(w_private_key) + '\n' +
-                                             'WIF private key: ' + str(w_wif) + '\n' +
-                                             'public key: ' + str(w_public_key) + '\n' +
-                                             'uncompressed wallet address: ' + str(w_address) + '\n' +
-                                             'balance: ' + str(balance))
+                            if method == 1:
+                                w_private_key = wallet["private_key"]
+                                w_public_key = wallet["public_key"]
+                                w_wif = wallet["wif"]
+                                balance = data["final_balance"]
+                                tg_message = str('hex private key: ' + str(w_private_key) + '\n' +
+                                                 'WIF private key: ' + str(w_wif) + '\n' +
+                                                 'public key: ' + str(w_public_key) + '\n' +
+                                                 'uncompressed wallet address: ' + str(w_address) + '\n' +
+                                                 'balance: ' + str(balance))
+                            else:
+                                seed = data["seed"]
+                                balance = data["final_balance"]
+                                tg_message = str('seed: ' + str(seed) + '\n' +
+                                                 'uncompressed wallet address: ' + str(w_address) + '\n' +
+                                                 'balance: ' + str(balance))
                             if TG_BOT_TOKEN and TG_CHAT_ID:
                                 send_telegram_message(message=tg_message)
 
                             print(f"Found Wallet:{tg_message}\n")
                             wallet["balance"] = balance
                             append_json_to_file(json_response=json.dumps(wallet, indent=4),
-                                                output_json_file=f'{process_index}_found_wallets.json')
+                                                output_json_file=f'{process_index}found_wallets.json')
                             break
 
 
@@ -254,6 +298,7 @@ if __name__ == '__main__':
         'cores': multiprocessing.cpu_count(),
         'check_wallets': 1,
         'fastecdsa': True,
+        'method': 1,
     }
 
     for arg in sys.argv[1:]:
@@ -291,6 +336,13 @@ if __name__ == '__main__':
             else:
                 print('invalid input. check_wallets must be 0(false) or 1(true)')
                 sys.exit(-1)
+        elif command == 'method':
+            selected_method = int(arg.split('=')[1])
+            if selected_method in [1, 2]:
+                args['method'] = selected_method
+            else:
+                print('invalid input. method must be 1(false) or 2(true)')
+                sys.exit(-1)
         else:
             print('invalid input: ' + command + '\nrun `python3 main.py help` for help')
             sys.exit(-1)
@@ -300,6 +352,7 @@ if __name__ == '__main__':
         print('processes spawned: ' + str(args['cores']))
         for cpu in range(args['cores']):
             index += 1
-            multiprocessing.Process(target=main, args=(args, str(index))).start()
+            index_string = str(index) + "_"
+            multiprocessing.Process(target=main, args=(args, index_string)).start()
     else:
         main(params=args, process_index="")

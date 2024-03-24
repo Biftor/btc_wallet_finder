@@ -164,6 +164,7 @@ cython_debug/
 /wallets.json
 /found_wallets.json
 /params.env
+*.json
 
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/inspectionProfiles/Project_Default.xml

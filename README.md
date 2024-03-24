@@ -34,4 +34,7 @@ Additionally, you can add your own telegram bot in case if any wallet found send
 create an env file named `prams.env`
 with these values `TG_BOT_TOKEN` and `TG_CHAT_ID`
 
+# To make package
+`pyinstaller --add-data "wordlist/*.txt:bip_utils/bip/bip39/wordlist" --onefile  main.py`
+
 # Enjoy!
