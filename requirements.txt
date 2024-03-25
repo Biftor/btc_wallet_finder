@@ -2,3 +2,5 @@ fastecdsa~=2.3.2
 bip_utils
 starkbank-ecdsa
 requests~=2.31.0
+cx_Freeze
+pyinstaller

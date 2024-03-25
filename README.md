@@ -36,6 +36,8 @@ with these values `TG_BOT_TOKEN` and `TG_CHAT_ID`
 
 # To make package
 `pyinstaller --add-data "includes/wordlist/*.txt:bip_utils/bip/bip39/wordlist" --onefile  main.py`
+Using cx_Freeze:
+`python setup.py build`
 
 Windows:
 `pyinstaller --add-data "includes/wordlist/*.txt:bip_utils/bip/bip39/wordlist" --add-data "includes/libsecp256k1.dll:coincurve" --icon=icon.ico --onefile  main.py`
