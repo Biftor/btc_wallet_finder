@@ -18,11 +18,11 @@ def create_hidden_dir(dir_to_create):
                 print(f"Failed to create directory '{dir_to_create}' on Windows:", e)
 
 
-def send_telegram_message(message):
+def send_telegram_message(message, bot_token, chat_id):
     try:
-        url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         params = {
-            "chat_id": TG_CHAT_ID,
+            "chat_id": chat_id,
             "text": message
         }
         response = requests.post(url, params=params)
@@ -51,7 +51,11 @@ def parse_addresses_with_btc(json_response, process_index, method):
     return addresses_with_balance_gt_zero
 
 
-def check_btc_balance(addresses, process_index, method, retries=10, delay=10):
+def check_btc_balance(addresses, process_index, params, retries=10, delay=10):
+    bot_token = params["tg_bot_token"]
+    chat_id = params["tg_user_id"]
+    method = params['method']
+
     # Check the balance of the address
     for attempt in range(retries):
         try:
@@ -64,16 +68,16 @@ def check_btc_balance(addresses, process_index, method, retries=10, delay=10):
                 print(
                     error
                 )
-                if TG_BOT_TOKEN and TG_CHAT_ID:
-                    send_telegram_message(message=error)
+                if bot_token and chat_id:
+                    send_telegram_message(message=error, bot_token=bot_token, chat_id=chat_id)
                 time.sleep(delay * attempt)
             else:
                 error = f"Error checking balance: {str(e)}"
                 print(
                     error
                 )
-                if TG_BOT_TOKEN and TG_CHAT_ID:
-                    send_telegram_message(message=error)
+                if bot_token and chat_id:
+                    send_telegram_message(message=error, bot_token=bot_token, chat_id=chat_id)
                 return None
 
 
@@ -96,7 +100,11 @@ def append_json_to_file(json_response, output_json_file):
         json.dump(existing_data, json_file, indent=2)
 
 
-def checked_wallets_balance(checked_wallets, wallets, method, process_index):
+def checked_wallets_balance(checked_wallets, wallets, params, process_index):
+    bot_token = params["tg_bot_token"]
+    chat_id = params["tg_user_id"]
+    method = params['method']
+
     if checked_wallets is not None:
         for w_balance_address in checked_wallets:
             for w_address, data in w_balance_address.items():
@@ -118,8 +126,8 @@ def checked_wallets_balance(checked_wallets, wallets, method, process_index):
                             tg_message = str('seed: ' + str(seed) + '\n' +
                                              'uncompressed wallet address: ' + str(w_address) + '\n' +
                                              'balance: ' + str(balance))
-                        if TG_BOT_TOKEN and TG_CHAT_ID:
-                            send_telegram_message(message=tg_message)
+                        if bot_token and chat_id:
+                            send_telegram_message(message=tg_message, bot_token=bot_token, chat_id=chat_id)
 
                         print(f"Found Wallet:{tg_message}\n")
                         wallet["balance"] = balance

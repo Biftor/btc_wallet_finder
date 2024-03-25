@@ -6,6 +6,11 @@ def bip():
     return Bip39MnemonicGenerator().FromWordsNumber(Bip39WordsNum.WORDS_NUM_12)
 
 
+def bip24():
+    # Generate a 24-word BIP39 mnemonic
+    return Bip39MnemonicGenerator().FromWordsNumber(Bip39WordsNum.WORDS_NUM_24)
+
+
 def bip44_btc_seed_to_address(seed):
     # Generate the seed from the mnemonic
     seed_bytes = Bip39SeedGenerator(seed).Generate()

@@ -173,3 +173,7 @@ cython_debug/
 /.idea/misc.xml
 /.idea/modules.xml
 /.idea/vcs.xml
+/main.dist/
+/main.build/
+/main.onefile-build/
+main.exe
