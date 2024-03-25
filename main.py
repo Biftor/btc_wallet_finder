@@ -133,6 +133,9 @@ def parse_and_validate_args():
     if os.path.exists(config_file):
         if len(sys.argv) < 2:
             change_config = input("Do you want to change the settings? (y/n): ")
+            if stored_params:
+                _params.clear()
+                _params = stored_params
             if change_config.lower() == "y":
                 # Prompt the user for input
                 _params.clear()
