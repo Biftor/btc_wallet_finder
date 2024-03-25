@@ -109,7 +109,8 @@ def asks_for_input(params):
     check_wallets_string = ""
     if str(params['check_wallets']) == "1":
         check_wallets_string = " and check"
-    check_time = input(f"Do you want check process to generate{check_wallets_string} {str(params['max_wallets'])} wallets time? (y/n): ")
+    check_time = input(
+        f"Do you want check process to generate{check_wallets_string} {str(params['max_wallets'])} wallets time? (y/n): ")
     if check_time.lower() == "y":
         timer(params=params)
 
@@ -124,8 +125,9 @@ def parse_and_validate_args():
     if os.path.exists(config_file):
         with open(config_file, 'r') as f:
             stored_params = json.load(f)
-            print("Config file exists with the following settings:")
-            print(json.dumps(stored_params, indent=4))
+            if len(sys.argv) < 2:
+                print("Config file exists with the following settings:")
+                print(json.dumps(stored_params, indent=4))
 
     # Check if config file exists
     if os.path.exists(config_file):
@@ -142,11 +144,15 @@ def parse_and_validate_args():
             else:
                 print("Press Enter to start...")
                 input()
-
-        return _params
+            return _params
 
     # Check for command-line arguments
     if len(sys.argv) > 1:
+
+        if stored_params:
+            _params.clear()
+            _params = stored_params
+
         for arg in sys.argv[1:]:
             if "=" not in arg:
                 return _params
