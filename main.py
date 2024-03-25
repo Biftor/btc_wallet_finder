@@ -129,21 +129,21 @@ def parse_and_validate_args():
 
     # Check if config file exists
     if os.path.exists(config_file):
-        if len(sys.argv) < 1:
+        if len(sys.argv) < 2:
             change_config = input("Do you want to change the settings? (y/n): ")
             if change_config.lower() == "y":
                 # Prompt the user for input
                 _params.clear()
-                _params = asks_for_input(params=stored_params).copy()
+                _params = asks_for_input(params=stored_params)
 
                 # Write _params to config file
                 with open(config_file, 'w') as f:
                     json.dump(_params, f)
-                return _params
             else:
                 print("Press Enter to start...")
                 input()
-                return stored_params
+
+        return _params
 
     # Check for command-line arguments
     if len(sys.argv) > 1:
@@ -175,9 +175,9 @@ def parse_and_validate_args():
         # Prompt the user for input
         if stored_params:
             _params.clear()
-            _params = asks_for_input(params=stored_params).copy()
+            _params = asks_for_input(params=stored_params)
         else:
-            _params = asks_for_input(params=_params).copy()
+            _params = asks_for_input(params=_params)
 
         # Write _params to config file
         with open(config_file, 'w') as f:
@@ -235,8 +235,8 @@ def start_app(params):
 if __name__ == '__main__':
     multiprocessing.freeze_support()
     create_hidden_dir(cache_directory)
-    args = parse_and_validate_args()
     try:
+        args = parse_and_validate_args()
         start_app(params=args)
     except:
         pass
