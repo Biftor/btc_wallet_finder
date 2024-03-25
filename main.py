@@ -1,4 +1,5 @@
 import json
+import platform
 
 import requests
 from bip_utils import Bip39MnemonicGenerator, Bip39WordsNum, Bip39SeedGenerator, Bip44Coins, Bip44, Bip44Changes
@@ -35,6 +36,7 @@ cores: number of cores to run concurrently. More cores = more resource usage but
 parameter to run with the maximum number of cores'''
 
 directory = os.path.dirname(os.path.abspath(__file__))
+cache_directory = str(directory) + '/.wallet_finder_caches'
 
 ENV_FILE_NAME = "params.env"
 env_file_path = os.path.join(directory, ENV_FILE_NAME)
@@ -138,10 +140,10 @@ def send_telegram_message(message):
         pass
 
 
-def parse_addresses_with_btc(json_response, process_index):
+def parse_addresses_with_btc(json_response, process_index, method):
     addresses_with_balance_gt_zero = []
 
-    with open(f'{process_index}btc_wallets.json', 'w') as json_file:
+    with open(f'{cache_directory}/{method}_{process_index}btc_wallets.json', 'w') as json_file:
         json.dump(json_response, json_file, indent=4)
     for w_address, data in json_response.items():
         final_balance = data['final_balance'] / 100000000  # Convert satoshi to bitcoin
@@ -155,13 +157,13 @@ def parse_addresses_with_btc(json_response, process_index):
     return addresses_with_balance_gt_zero
 
 
-def check_btc_balance(addresses, process_index, retries=3, delay=10):
+def check_btc_balance(addresses, process_index, method, retries=10, delay=10):
     # Check the balance of the address
     for attempt in range(retries):
         try:
             response = requests.get(f"https://blockchain.info/balance?active={addresses}")
             json_response = response.json()
-            return parse_addresses_with_btc(process_index=process_index, json_response=json_response)
+            return parse_addresses_with_btc(process_index=process_index, json_response=json_response, method=method)
         except Exception as e:
             if attempt < retries - 1:
                 error = f"Error checking balance, retrying in {delay} seconds: {str(e)}"
@@ -170,7 +172,7 @@ def check_btc_balance(addresses, process_index, retries=3, delay=10):
                 )
                 if TG_BOT_TOKEN and TG_CHAT_ID:
                     send_telegram_message(message=error)
-                time.sleep(delay)
+                time.sleep(delay * attempt)
             else:
                 error = f"Error checking balance: {str(e)}"
                 print(
@@ -200,6 +202,66 @@ def append_json_to_file(json_response, output_json_file):
         json.dump(existing_data, json_file, indent=2)
 
 
+def method1(params, wallets):
+    wallet_hex_private_key = generate_private_key()
+    wallet_public_key = private_key_to_public_key(wallet_hex_private_key, params['fastecdsa'])
+    wallet_wif = private_key_to_wif(wallet_hex_private_key)
+    wallet_uncompressed_address = public_key_to_address(wallet_public_key)
+    if params['verbose']:
+        print(wallet_uncompressed_address)
+    wallets.append({
+        "private_key": wallet_hex_private_key,
+        "public_key": wallet_public_key,
+        "wif": wallet_wif,
+        "address": wallet_uncompressed_address
+    })
+    return wallet_uncompressed_address
+
+
+def method2(params, wallets):
+    seed = bip()
+    wallet_uncompressed_address = bip44_btc_seed_to_address(seed)
+    if params['verbose']:
+        print(seed)
+    wallets.append({
+        "seed": str(seed),
+        "address": wallet_uncompressed_address
+    })
+    return wallet_uncompressed_address
+
+
+def checked_wallets_balance(checked_wallets, wallets, method, process_index):
+    if checked_wallets is not None:
+        for w_balance_address in checked_wallets:
+            for w_address, data in w_balance_address.items():
+                for wallet in wallets:
+                    if wallet['address'] == w_address:
+                        if method == 1:
+                            w_private_key = wallet["private_key"]
+                            w_public_key = wallet["public_key"]
+                            w_wif = wallet["wif"]
+                            balance = data["final_balance"]
+                            tg_message = str('hex private key: ' + str(w_private_key) + '\n' +
+                                             'WIF private key: ' + str(w_wif) + '\n' +
+                                             'public key: ' + str(w_public_key) + '\n' +
+                                             'uncompressed wallet address: ' + str(w_address) + '\n' +
+                                             'balance: ' + str(balance))
+                        else:
+                            seed = data["seed"]
+                            balance = data["final_balance"]
+                            tg_message = str('seed: ' + str(seed) + '\n' +
+                                             'uncompressed wallet address: ' + str(w_address) + '\n' +
+                                             'balance: ' + str(balance))
+                        if TG_BOT_TOKEN and TG_CHAT_ID:
+                            send_telegram_message(message=tg_message)
+
+                        print(f"Found Wallet:{tg_message}\n")
+                        wallet["balance"] = balance
+                        append_json_to_file(json_response=json.dumps(wallet, indent=4),
+                                            output_json_file=f'{cache_directory}/{method}_{process_index}found_wallets.json')
+                        break
+
+
 def create_and_check_wallets(params, process_index, check=True):
     wallets = []
     max_generate = params["max_wallets"]
@@ -208,27 +270,9 @@ def create_and_check_wallets(params, process_index, check=True):
     addresses = ''
     while count < max_generate:
         if method == 1:
-            wallet_hex_private_key = generate_private_key()
-            wallet_public_key = private_key_to_public_key(wallet_hex_private_key, params['fastecdsa'])
-            wallet_wif = private_key_to_wif(wallet_hex_private_key)
-            wallet_uncompressed_address = public_key_to_address(wallet_public_key)
-            if params['verbose']:
-                print(wallet_uncompressed_address)
-            wallets.append({
-                "private_key": wallet_hex_private_key,
-                "public_key": wallet_public_key,
-                "wif": wallet_wif,
-                "address": wallet_uncompressed_address
-            })
+            wallet_uncompressed_address = method1(params=params, wallets=wallets)
         else:
-            seed = bip()
-            wallet_uncompressed_address = bip44_btc_seed_to_address(seed)
-            if params['verbose']:
-                print(seed)
-            wallets.append({
-                "seed": str(seed),
-                "address": wallet_uncompressed_address
-            })
+            wallet_uncompressed_address = method2(params=params, wallets=wallets)
 
         count += 1
         if count < max_generate:
@@ -236,40 +280,13 @@ def create_and_check_wallets(params, process_index, check=True):
         else:
             addresses += wallet_uncompressed_address
 
-    with open(f'{process_index}wallets.json', 'w') as json_file:
+    with open(f'{cache_directory}/{method}_{process_index}wallets.json', 'w') as json_file:
         json.dump(wallets, json_file, indent=4)
 
     if check:
-        checked_wallets = check_btc_balance(addresses=addresses, process_index=process_index)
-        if checked_wallets is not None:
-            for w_balance_address in checked_wallets:
-                for w_address, data in w_balance_address.items():
-                    for wallet in wallets:
-                        if wallet['address'] == w_address:
-                            if method == 1:
-                                w_private_key = wallet["private_key"]
-                                w_public_key = wallet["public_key"]
-                                w_wif = wallet["wif"]
-                                balance = data["final_balance"]
-                                tg_message = str('hex private key: ' + str(w_private_key) + '\n' +
-                                                 'WIF private key: ' + str(w_wif) + '\n' +
-                                                 'public key: ' + str(w_public_key) + '\n' +
-                                                 'uncompressed wallet address: ' + str(w_address) + '\n' +
-                                                 'balance: ' + str(balance))
-                            else:
-                                seed = data["seed"]
-                                balance = data["final_balance"]
-                                tg_message = str('seed: ' + str(seed) + '\n' +
-                                                 'uncompressed wallet address: ' + str(w_address) + '\n' +
-                                                 'balance: ' + str(balance))
-                            if TG_BOT_TOKEN and TG_CHAT_ID:
-                                send_telegram_message(message=tg_message)
-
-                            print(f"Found Wallet:{tg_message}\n")
-                            wallet["balance"] = balance
-                            append_json_to_file(json_response=json.dumps(wallet, indent=4),
-                                                output_json_file=f'{process_index}found_wallets.json')
-                            break
+        checked_wallets = check_btc_balance(addresses=addresses, process_index=process_index, method=method)
+        checked_wallets_balance(checked_wallets=checked_wallets, wallets=wallets, method=method,
+                                process_index=process_index)
 
 
 def main(params, process_index):
@@ -292,8 +309,21 @@ def timer(params):
     sys.exit(0)
 
 
+def create_cache_dir():
+    if not os.path.exists(cache_directory):
+        os.makedirs(cache_directory)
+        # Check if the platform is Windows
+        if platform.system() == "Windows":
+            try:
+                os.system(f"attrib +h {cache_directory}")
+            except Exception as e:
+                print(f"Failed to create directory '{cache_directory}' on Windows:", e)
+
+
 if __name__ == '__main__':
     multiprocessing.freeze_support()
+    create_cache_dir()
+
     args = {
         'verbose': 0,
         'max_wallets': 400,
@@ -320,6 +350,9 @@ if __name__ == '__main__':
             cpu_count = int(arg.split('=')[1])
             if 0 < cpu_count <= multiprocessing.cpu_count():
                 args['cores'] = cpu_count
+            elif 0 < cpu_count > multiprocessing.cpu_count():
+                print('Warning you have selected more that actual number of cores which is ' + str(
+                    multiprocessing.cpu_count()) + ' this may freeze slowdown your computer')
             else:
                 print('invalid input. cores must be greater than 0 and less than or equal to ' + str(
                     multiprocessing.cpu_count()))

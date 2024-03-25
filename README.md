@@ -35,6 +35,9 @@ create an env file named `prams.env`
 with these values `TG_BOT_TOKEN` and `TG_CHAT_ID`
 
 # To make package
-`pyinstaller --add-data "wordlist/*.txt:bip_utils/bip/bip39/wordlist" --onefile  main.py`
+`pyinstaller --add-data "includes/wordlist/*.txt:bip_utils/bip/bip39/wordlist" --onefile  main.py`
+
+Windows:
+`pyinstaller --add-data "includes/wordlist/*.txt:bip_utils/bip/bip39/wordlist" --add-data "includes/libsecp256k1.dll:coincurve" --onefile  main.py`
 
 # Enjoy!
