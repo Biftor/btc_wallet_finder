@@ -81,23 +81,30 @@ def timer(params):
 
 
 def parse_and_validate_args():
+    prams = {
+        'verbose': 0,
+        'max_wallets': 400,
+        'cores': multiprocessing.cpu_count(),
+        'check_wallets': 1,
+        'method': 1,
+    }
     for arg in sys.argv[1:]:
         command = arg.split('=')[0]
         if command == 'help':
             print_help()
         elif command == 'time':
-            timer(args)
+            timer(prams)
         elif command == 'max_wallets':
             max_wallets = int(arg.split('=')[1])
             if 0 < max_wallets:
-                args['max_wallets'] = max_wallets
+                prams['max_wallets'] = max_wallets
             else:
                 print('invalid input. max_wallets must be greater than 0')
                 sys.exit(-1)
         elif command == 'cores':
             cpu_count = int(arg.split('=')[1])
             if 0 < cpu_count <= multiprocessing.cpu_count():
-                args['cores'] = cpu_count
+                prams['cores'] = cpu_count
             elif 0 < cpu_count > multiprocessing.cpu_count():
                 print('Warning you have selected more that actual number of cores which is ' + str(
                     multiprocessing.cpu_count()) + ' this may freeze slowdown your computer')
@@ -106,43 +113,37 @@ def parse_and_validate_args():
                     multiprocessing.cpu_count()))
                 sys.exit(-1)
         elif command == 'verbose':
-            verbose = arg.split('=')[1]
-            if verbose in ['0', '1']:
-                args['verbose'] = verbose
+            verbose = int(arg.split('=')[1])
+            if verbose in [1, 2]:
+                prams['verbose'] = verbose
             else:
                 print('invalid input. verbose must be 0(false) or 1(true)')
                 sys.exit(-1)
         elif command == 'check_wallets':
-            check_wallets = arg.split('=')[1]
-            if check_wallets in ['0', '1']:
-                args['check_wallets'] = check_wallets
+            check_wallets = int(arg.split('=')[1])
+            if check_wallets in [1, 2]:
+                prams['check_wallets'] = check_wallets
             else:
                 print('invalid input. check_wallets must be 0(false) or 1(true)')
                 sys.exit(-1)
         elif command == 'method':
             selected_method = int(arg.split('=')[1])
             if selected_method in [1, 2]:
-                args['method'] = selected_method
+                prams['method'] = selected_method
             else:
                 print('invalid input. method must be 1(false) or 2(true)')
                 sys.exit(-1)
         else:
             print('invalid input: ' + command + '\nrun `python3 main.py help` for help')
             sys.exit(-1)
+    return prams
 
 
 if __name__ == '__main__':
     multiprocessing.freeze_support()
     create_hidden_dir(cache_directory)
 
-    args = {
-        'verbose': 0,
-        'max_wallets': 400,
-        'cores': multiprocessing.cpu_count(),
-        'check_wallets': 1,
-        'method': 1,
-    }
-    parse_and_validate_args()
+    args = parse_and_validate_args()
 
     if args['cores'] > 1:
         index = 0
