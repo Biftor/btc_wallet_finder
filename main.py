@@ -119,63 +119,71 @@ def asks_for_input(params):
 
 
 def parse_and_validate_args():
-    params = defaults_params.copy()  # Initialize params with default values
-    # Check if config file exists
+    _params = defaults_params.copy()  # Initialize _params with default values
+    stored_params = None
     if os.path.exists(config_file):
         with open(config_file, 'r') as f:
             stored_params = json.load(f)
             print("Config file exists with the following settings:")
             print(json.dumps(stored_params, indent=4))
-            if len(sys.argv) < 1:
-                change_config = input("Do you want to change the settings? (y/n): ")
-                if change_config.lower() == "y":
-                    # Prompt the user for input
-                    params = asks_for_input(params=stored_params)
 
-                    # Write params to config file
-                    with open(config_file, 'w') as f:
-                        json.dump(params, f)
-                    return params
-                else:
-                    print("Press Enter to start...")
-                    input()
-                    return stored_params
+    # Check if config file exists
+    if os.path.exists(config_file):
+        if len(sys.argv) < 1:
+            change_config = input("Do you want to change the settings? (y/n): ")
+            if change_config.lower() == "y":
+                # Prompt the user for input
+                _params.clear()
+                _params = asks_for_input(params=stored_params).copy()
+
+                # Write _params to config file
+                with open(config_file, 'w') as f:
+                    json.dump(_params, f)
+                return _params
+            else:
+                print("Press Enter to start...")
+                input()
+                return stored_params
 
     # Check for command-line arguments
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
             if "=" not in arg:
-                return params
+                return _params
             command, value = arg.split('=')
             if command == 'verbose':
-                params['verbose'] = int(value)
+                _params['verbose'] = int(value)
             elif command == 'max_wallets':
-                params['max_wallets'] = int(value)
+                _params['max_wallets'] = int(value)
             elif command == 'cores':
-                params['cores'] = int(value)
+                _params['cores'] = int(value)
             elif command == 'check_wallets':
-                params['check_wallets'] = int(value)
+                _params['check_wallets'] = int(value)
             elif command == 'method':
-                params['method'] = int(value)
+                _params['method'] = int(value)
             elif command == 'tg_bot_token':
-                params['tg_bot_token'] = str(value)
+                _params['tg_bot_token'] = str(value)
             elif command == 'tg_user_id':
-                params['tg_user_id'] = str(value)
+                _params['tg_user_id'] = str(value)
             elif command == 'user_wallet_address':
-                params['user_wallet_address'] = str(value)
+                _params['user_wallet_address'] = str(value)
 
-        # Write params to config file
+        # Write _params to config file
         with open(config_file, 'w') as f:
-            json.dump(params, f)
+            json.dump(_params, f)
     else:
         # Prompt the user for input
-        params = asks_for_input(params=params)
+        if stored_params:
+            _params.clear()
+            _params = asks_for_input(params=stored_params).copy()
+        else:
+            _params = asks_for_input(params=_params).copy()
 
-        # Write params to config file
+        # Write _params to config file
         with open(config_file, 'w') as f:
-            json.dump(params, f)
+            json.dump(_params, f)
 
-    return params
+    return _params
 
 
 def main(params, process_index):
